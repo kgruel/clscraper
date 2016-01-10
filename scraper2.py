@@ -11,8 +11,7 @@ import requests
 from bs4 import BeautifulSoup
 
 logging.basicConfig(stream=sys.stdout,
-                    level=logging.DEBUG,)
-
+                    level=logging.INFO,)
 con = sqlite3.connect('re.db')
 cur = con.cursor()
 
@@ -97,10 +96,12 @@ def process_listings(listing):
     con.execute('INSERT INTO listings VALUES (?, ?, ?, ?, ?, ?, ?, null, null, null, null, null, ?)', listing)
 
 base = 'http://portland.craigslist.org'
+logging.info('Getting listings...')
 srch = '/search/apa'
 resp = requests.get(base + srch)
 html = BeautifulSoup(resp.text, 'html.parser')
 current_listings = html.find_all('p', attrs={'class': 'row'})
+
 
 # for listing in current_listings:
 #     process_listings(listing)
@@ -120,5 +121,21 @@ for listing in current_listings:
         pass
 
 con.commit()
-logging.info('Commit complete.')
+logging.info('New listings processed and commit complete.')
+
+posts = cur.execute('SELECT postid, href FROM listings WHERE posttime > ?', last_post_time).fetchall()
+logging.info('Getting posts...')
+
+for post in posts:
+    rnd = random()
+    info.logging('Waiting for %s seconds.', rnd)
+    time.sleep(rnd)
+    r = requests.get(base + post[1])
+    post_body = BeautifulSoup(r.text, 'html.parser')
+    lat, lon, accuracy, description, attributes, postid = parse_post(post_body)
+    logging.info('Processing post %s', post[0])
+    cur.execute('UPDATE listings SET lat = ?, lon = ?, accuracy = ?, description = ?, attributes = ? WHERE postid = ?', (lat, lon, accuracy, description, attributes, postid))
+
+con.commit()
+logging.info('New postings processed and commit complete.')
 con.close()
